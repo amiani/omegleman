@@ -10,7 +10,7 @@
 	export const prerender = false
 
 	let omegle: Omegle
-	const sessions: Session[] = []
+	let sessions: Session[] = []
 
 	onMount(async () => {
 		omegle = await Omegle.create(settings)
@@ -20,12 +20,15 @@
 	async function startSession() {
 		const session = await omegle.startSession(settings, handleSessionDisconnect)
 			.catch(err => console.log(`Error starting session: ${err}`))
-		session && sessions.push(session)
+		if (session) {
+			sessions = sessions.concat(session)
+		}
 	}
 
 	function handleSessionDisconnect(id: string) {
 		const index = sessions.findIndex(session => session.id === id)
 		sessions.splice(index, 1)
+		sessions = sessions
 	}
 
 	async function pollEvents() {

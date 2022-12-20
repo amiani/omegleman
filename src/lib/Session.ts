@@ -3,6 +3,11 @@ import type { Settings } from './settings'
 
 export type DisconnectHandler = (id: string) => void
 
+export interface Message {
+	author: string
+	text: string
+}
+
 const rtcConfig = {
 	iceServers: [
 		{
@@ -19,7 +24,7 @@ export class Session {
 	//started: boolean
 	connected: boolean
 	video: boolean
-	typing: false
+	isStrangerTyping: boolean
 	rtc: {
 		call: boolean,
 		peer: boolean,
@@ -28,14 +33,17 @@ export class Session {
 		wait: 0,
 	}
 	peerConnection: RTCPeerConnection
+	stream: MediaStream
 	settings: Settings
+	messages: Message[] = []
+
 	handleDisconnect: DisconnectHandler
 
-	private constructor(id: string, settings: Settings, media: MediaStream, onDisconnect: DisconnectHandler) {
+	private constructor(id: string, settings: Settings, stream: MediaStream, onDisconnect: DisconnectHandler) {
 		this.id = id
 		this.connected = false
 		this.video = false
-		this.typing = false
+		this.isStrangerTyping = false
 		this.rtc = {
 			call: false,
 			peer: false,
@@ -44,22 +52,24 @@ export class Session {
 			wait: 0,
 		}
 		this.peerConnection = new RTCPeerConnection(rtcConfig)
-		for (const track of media.getTracks()) {
-			this.peerConnection.addTrack(track, media)
-		}
 		this.settings = settings
 		this.handleDisconnect = onDisconnect
+
+		this.stream = stream
+		for (const track of stream.getTracks()) {
+			this.peerConnection.addTrack(track, stream)
+		}
 	}
 
 	static async create(id: string, settings: Settings, onDisconnect: DisconnectHandler): Promise<Session> {
-		const media = await navigator.mediaDevices.getUserMedia({
+		const stream = await navigator.mediaDevices.getUserMedia({
 			video: true,
 			audio: {
 				echoCancellation: true,
 				noiseSuppression: true,
 			},
 		})
-		return new Session(id, settings, media, onDisconnect)
+		return new Session(id, settings, stream, onDisconnect)
 	}
 
 	private async handleRTCCall(omegle: Omegle) {
@@ -114,6 +124,14 @@ export class Session {
 		this.connected = true
 	}
 
+	private handleTyping() {
+		this.isStrangerTyping = true
+	}
+
+	private handleStoppedTyping() {
+		this.isStrangerTyping = false
+	}
+
 	public handleEvents(events: OmegleEvent[], omegle: Omegle) {
 		for (const event of events) {
 			this.handleEvent(event, omegle)
@@ -138,10 +156,10 @@ export class Session {
 				addMessage(data, "stranger")
 				break;
 			case "typing":
-				setTyping(true)
+				this.handleTyping()
 				break;
 			case "stoppedTyping":
-				setTyping(false)
+				this.handleStoppedTyping()
 				break;
 			case "commonLikes":
 				addStatus(getLikeString(data))
