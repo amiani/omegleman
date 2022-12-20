@@ -1,14 +1,21 @@
 <script lang="ts">
 	import type { Session } from '$lib/Session'
 	import Chat from "$lib/components/Chat.svelte"
-  import { onMount } from 'svelte';
+  import { afterUpdate, beforeUpdate, onMount } from 'svelte';
 	export let session: Session
 
 	let remoteVideo: HTMLVideoElement
 	let localVideo: HTMLVideoElement
+
 	onMount(() => {
-		localVideo.srcObject = session.stream
-		console.log('sessionPane mounted')
+		localVideo.srcObject = session.localStream
+	})
+
+	afterUpdate(() => {
+		if (session.remoteStream) {
+			console.log('setting remote stream')
+			remoteVideo.srcObject = session.remoteStream
+		}
 	})
 </script>
 

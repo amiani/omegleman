@@ -18,11 +18,15 @@
 	})
 
 	async function startSession() {
-		const session = await omegle.startSession(settings, handleSessionDisconnect)
+		const session = await omegle.startSession(settings, handleRemoteStream, handleSessionDisconnect)
 			.catch(err => console.log(`Error starting session: ${err}`))
 		if (session) {
 			sessions = sessions.concat(session)
 		}
+	}
+
+	function handleRemoteStream(_: MediaStream) {
+		sessions = sessions
 	}
 
 	function handleSessionDisconnect(id: string) {

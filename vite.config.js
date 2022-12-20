@@ -22,6 +22,10 @@ const configureProxyResponse = ({ proxy, options }) => {
 	})
 	return { proxy, options }
 }
+const configureBoth = (proxy, options) => pipe(
+	configureProxyRequest,
+	configureProxyResponse
+)({ proxy, options })
 
 /** @type {import('vite').UserConfig} */
 const config = {
@@ -36,26 +40,22 @@ const config = {
 			'/start': {
 				target: 'https://front45.omegle.com',
 				changeOrigin: true,
-				configure: (proxy, options) => pipe(
-					configureProxyRequest,
-					configureProxyResponse
-				)({ proxy, options })
+				configure: configureBoth
 			},
 			'/events': {
 				target: 'https://front45.omegle.com',
 				changeOrigin: true,
-				configure: (proxy, options) => pipe(
-					configureProxyRequest,
-					configureProxyResponse
-				)({ proxy, options })
+				configure: configureBoth
 			},
 			'/rtcpeerdescription': {
 				target: 'https://front45.omegle.com',
 				changeOrigin: true,
-				configure: (proxy, options) => pipe(
-					configureProxyRequest,
-					configureProxyResponse
-				)({ proxy, options })
+				configure: configureBoth
+			},
+			'/icecandidate': {
+				target: 'https://front45.omegle.com',
+				changeOrigin: true,
+				configure: configureBoth
 			}
 		},
 	},

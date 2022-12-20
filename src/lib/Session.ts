@@ -1,6 +1,7 @@
 import type Omegle from './Omegle'
 import type { Settings } from './settings'
 
+export type RemoteStreamHandler = (stream: MediaStream) => void
 export type DisconnectHandler = (id: string) => void
 
 export interface Message {
@@ -23,45 +24,75 @@ export class Session {
 	id: string
 	//started: boolean
 	connected: boolean
-	video: boolean
+	//video: boolean
 	isStrangerTyping: boolean
 	rtc: {
 		call: boolean,
 		peer: boolean,
 		candidates: RTCIceCandidate[],
-		icelocal: RTCIceCandidate[],
-		wait: 0,
+		localICECandidates: RTCIceCandidate[],
+		wait?: NodeJS.Timeout
 	}
 	peerConnection: RTCPeerConnection
-	stream: MediaStream
+	localStream: MediaStream
+	remoteStream?: MediaStream
 	settings: Settings
 	messages: Message[] = []
 
 	handleDisconnect: DisconnectHandler
 
-	private constructor(id: string, settings: Settings, stream: MediaStream, onDisconnect: DisconnectHandler) {
+	private constructor(
+		id: string,
+		settings: Settings,
+		localStream: MediaStream,
+		omegle: Omegle,
+		onRemoteStream: RemoteStreamHandler,
+		onDisconnect: DisconnectHandler
+	) {
 		this.id = id
 		this.connected = false
-		this.video = false
 		this.isStrangerTyping = false
 		this.rtc = {
 			call: false,
 			peer: false,
 			candidates: [],
-			icelocal: [],
-			wait: 0,
+			localICECandidates: [],
 		}
-		this.peerConnection = new RTCPeerConnection(rtcConfig)
 		this.settings = settings
 		this.handleDisconnect = onDisconnect
 
-		this.stream = stream
-		for (const track of stream.getTracks()) {
-			this.peerConnection.addTrack(track, stream)
+		this.localStream = localStream
+		this.peerConnection = new RTCPeerConnection(rtcConfig)
+		for (const track of localStream.getTracks()) {
+			this.peerConnection.addTrack(track, localStream)
+		}
+		this.peerConnection.ontrack = (event: RTCTrackEvent) => {
+			console.log('Received remote stream')
+			this.remoteStream = event.streams[0]
+			onRemoteStream(event.streams[0])
+		}
+
+		this.peerConnection.onicecandidate = async (event: RTCPeerConnectionIceEvent) => {
+			if (this.peerConnection.iceGatheringState === "complete") {
+				return
+			}
+			event.candidate && this.rtc.localICECandidates.push(event.candidate);
+			clearTimeout(this.rtc.wait);
+			this.rtc.wait = setTimeout(() => {
+				omegle.postWithId(this.id, "icecandidate", { candidate: this.rtc.localICECandidates });
+				this.rtc.localICECandidates = []
+				this.rtc.wait = undefined;
+			}, 50);
 		}
 	}
 
-	static async create(id: string, settings: Settings, onDisconnect: DisconnectHandler): Promise<Session> {
+	static async create(
+		id: string,
+		settings: Settings,
+		omegle: Omegle,
+		onRemoteStream: RemoteStreamHandler,
+		onDisconnect: DisconnectHandler
+	): Promise<Session> {
 		const stream = await navigator.mediaDevices.getUserMedia({
 			video: true,
 			audio: {
@@ -69,7 +100,7 @@ export class Session {
 				noiseSuppression: true,
 			},
 		})
-		return new Session(id, settings, stream, onDisconnect)
+		return new Session(id, settings, stream, omegle, onRemoteStream, onDisconnect)
 	}
 
 	private async handleRTCCall(omegle: Omegle) {
@@ -114,7 +145,7 @@ export class Session {
 	private handleConnected(omegle: Omegle) {
 		//wait for video to be established, if it isn't after a delay, disconnect the session
 		setTimeout(() => {
-			const sessionBool = !this.video && this.connected
+			const sessionBool = !this.remoteStream && this.connected
 			const settingBool = this.settings.autodisconnect && this.settings.video
 			if (settingBool && sessionBool) {
 				omegle.postWithId(this.id, "disconnect")
@@ -130,6 +161,12 @@ export class Session {
 
 	private handleStoppedTyping() {
 		this.isStrangerTyping = false
+	}
+
+	private handleGotMessage(event: OmegleEvent) {
+		this.isStrangerTyping = false
+		console.log(`Stranger: ${event.data}`)
+		this.messages.push({ author: "Stranger", text: event.data })
 	}
 
 	public handleEvents(events: OmegleEvent[], omegle: Omegle) {
@@ -152,8 +189,7 @@ export class Session {
 				this.handleICECandidate(event)
 				break;
 			case "gotMessage":
-				setTyping(false);
-				addMessage(data, "stranger")
+				this.handleGotMessage(event)
 				break;
 			case "typing":
 				this.handleTyping()

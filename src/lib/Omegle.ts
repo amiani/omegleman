@@ -1,5 +1,5 @@
 import { findAndUnshift, getRandom } from "$lib/array-tools";
-import { Session, type DisconnectHandler, type OmegleEvent } from './Session';
+import { Session, type DisconnectHandler, type OmegleEvent, type RemoteStreamHandler } from './Session';
 import type { Settings } from './settings';
 
 type ErrorHandler = (error: string | Error) => void;
@@ -118,10 +118,10 @@ class Omegle {
 		return this.parseEvents(data)
 	}
 
-	public async startSession(settings: Settings, onDiconnect: DisconnectHandler): Promise<Session> {
+	public async startSession(settings: Settings, onRemoteStream: RemoteStreamHandler, onDiconnect: DisconnectHandler): Promise<Session> {
 		console.log('Starting new Session')
 		const res = await this.connect()
-		const session = await Session.create(res.clientID, settings, onDiconnect)
+		const session = await Session.create(res.clientID, settings, this, onRemoteStream, onDiconnect)
 		const events = this.parseEvents(res.events)
 		session.handleEvents(events, this)
 		return session
