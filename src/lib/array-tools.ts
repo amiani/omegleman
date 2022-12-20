@@ -6,6 +6,9 @@ const findAndUnshift = <T>(
 ): T[] => {
 	const copy = [...array]
 	const index = copy.findIndex(find);
+	if (index == -1) {
+		return copy
+	}
 	const elem = copy.splice(index, 1)
 	copy.unshift(elem[0])
 	return copy

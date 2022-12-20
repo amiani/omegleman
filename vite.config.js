@@ -7,16 +7,18 @@ const configureProxyRequest = ({ proxy, options }) => {
 		const subdomain = req.headers.host.split('.')[0]
 		const host = `${subdomain}.omegle.com`
 		proxyReq.host = host
+		proxyReq.headers = {
+			...req.headers,
+			host
+		}
 	})
 	return { proxy, options }
 }
 
 const configureProxyResponse = ({ proxy, options }) => {
 	proxy.on('proxyRes', (proxyRes, req, res) => {
-		proxyRes.on("data", (chunk) => res.write(chunk, "binary"));
-		proxyRes.on("end", () => res.end());
-		proxyRes.headers["access-control-allow-origin"] = "*";
-		proxyRes.statusCode && res.writeHead(proxyRes.statusCode, proxyRes.headers);
+		proxyRes.headers["access-control-allow-origin"] = "*"
+		proxyRes.statusCode && res.writeHead(proxyRes.statusCode, proxyRes.headers)
 	})
 	return { proxy, options }
 }
@@ -32,6 +34,22 @@ const config = {
 				configure: (proxy, options) => configureProxyResponse({ proxy, options })
 			},
 			'/start': {
+				target: 'https://front45.omegle.com',
+				changeOrigin: true,
+				configure: (proxy, options) => pipe(
+					configureProxyRequest,
+					configureProxyResponse
+				)({ proxy, options })
+			},
+			'/events': {
+				target: 'https://front45.omegle.com',
+				changeOrigin: true,
+				configure: (proxy, options) => pipe(
+					configureProxyRequest,
+					configureProxyResponse
+				)({ proxy, options })
+			},
+			'/rtcpeerdescription': {
 				target: 'https://front45.omegle.com',
 				changeOrigin: true,
 				configure: (proxy, options) => pipe(

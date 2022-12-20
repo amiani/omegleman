@@ -7,23 +7,33 @@
   import { onMount } from 'svelte';
 
 	export const ssr = false
+	export const prerender = false
 
 	let omegle: Omegle
 	const sessions: Session[] = []
 
 	onMount(async () => {
 		omegle = await Omegle.create(settings)
-		setInterval(async () => {
-			for (const session of sessions) {
-				const events = await omegle.pollEvents(session)
-				session.handleEvents(events, omegle)
-			}
-		}, 1)
+		pollEvents()
 	})
 
 	async function startSession() {
-		const session = await omegle.startSession(settings)
-		sessions.push(session)
+		const session = await omegle.startSession(settings, handleSessionDisconnect)
+			.catch(err => console.log(`Error starting session: ${err}`))
+		session && sessions.push(session)
+	}
+
+	function handleSessionDisconnect(id: string) {
+		const index = sessions.findIndex(session => session.id === id)
+		sessions.splice(index, 1)
+	}
+
+	async function pollEvents() {
+		for (const session of sessions) {
+			const events = await omegle.getEvents(session)
+			session.handleEvents(events, omegle)
+		}
+		setTimeout(pollEvents, 0)
 	}
 </script>
 

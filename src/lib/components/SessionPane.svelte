@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type Session from '$lib/Session'
+	import type { Session } from '$lib/Session'
 	import Chat from "$lib/components/Chat.svelte"
 	export let session: Session
 </script>

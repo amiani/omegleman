@@ -1,5 +1,5 @@
 import { findAndUnshift, getRandom } from "$lib/array-tools";
-import { Session, type OmegleEvent } from './Session';
+import { Session, type DisconnectHandler, type OmegleEvent } from './Session';
 import type { Settings } from './settings';
 
 type ErrorHandler = (error: string | Error) => void;
@@ -50,7 +50,7 @@ class Omegle {
 
 	private constructor(server: string, settings: Settings) {
 		this.connectionConfig = this.createConnectionConfig(settings)
-		this.errorHandler = error => void 0
+		this.errorHandler = _ => void 0	//TODO: handle errors for real
 		this.server = server
 	}
 
@@ -85,7 +85,7 @@ class Omegle {
 		return server
 	}
 
-	private async post(path: string, data: string) {
+	private async post(path: string, data?: string) {
 		return fetch(Omegle.formatURL(this.server, path), {
 			method: "POST",
 			body: data,
@@ -97,26 +97,19 @@ class Omegle {
 		.catch(this.errorHandler)
 	}
 	
-	public postWithId(id: string, path: string, data?: Record<string, unknown>) {
-		const sendData = data || {}
-		const plainObject = { id, ...sendData };
-		const encodedData = encodeObject(plainObject)
+	public postWithId(id: string, path: string, data: Record<string, unknown> = {}) {
+		const encodedData = encodeObject({ id, ...data })
 		return this.post(path, encodedData)
 	}
 
-	private async connect(server: string) {
+	private async connect() {
 		//@ts-expect-error TODO: fix this
 		const args = encodeObject(this.connectionConfig)
-		const url = Omegle.formatURL(server, `start?${args}`)
-		const res = await fetch(url, {
-			method: "POST",
-			referrerPolicy: "no-referrer",
-		})
-			.catch(this.errorHandler)
+		const res = await this.post(`start?${args}`)
 		return res?.json()
 	}
 
-	public async pollEvents(session: Session): Promise<OmegleEvent[]> {
+	public async getEvents(session: Session): Promise<OmegleEvent[]> {
 		const res = await this.postWithId(session.id, "events")
 		if (!res || !res.ok) {
 			return []
@@ -125,12 +118,11 @@ class Omegle {
 		return this.parseEvents(data)
 	}
 
-	public async startSession(settings: Settings): Promise<Session> {
+	public async startSession(settings: Settings, onDiconnect: DisconnectHandler): Promise<Session> {
 		console.log('Starting new Session')
-		const res = await this.connect(this.server);
-		const session = Session.create(res.clientId, settings)
+		const res = await this.connect()
+		const session = await Session.create(res.clientID, settings, onDiconnect)
 		const events = this.parseEvents(res.events)
-		console.log(events)
 		session.handleEvents(events, this)
 		return session
 	}
